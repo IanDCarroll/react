@@ -12,7 +12,7 @@
 let React;
 let ReactDOM;
 
-describe('SelectEventPlugin', () => {
+xdescribe('SelectEventPlugin', () => {
   let container;
 
   beforeEach(() => {

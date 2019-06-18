@@ -9,7 +9,7 @@
 
 'use strict';
 
-describe('ReactDOMComponentTree', () => {
+xdescribe('ReactDOMComponentTree', () => {
   let React;
   let ReactDOM;
   let container;

@@ -20,7 +20,7 @@ const setUntrackedInputValue = Object.getOwnPropertyDescriptor(
   'value',
 ).set;
 
-describe('ReactDOMFiberAsync', () => {
+xdescribe('ReactDOMFiberAsync', () => {
   let container;
 
   beforeEach(() => {

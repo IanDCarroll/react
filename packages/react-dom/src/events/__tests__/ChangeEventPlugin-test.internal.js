@@ -30,7 +30,7 @@ const setUntrackedTextareaValue = Object.getOwnPropertyDescriptor(
   'value',
 ).set;
 
-describe('ChangeEventPlugin', () => {
+xdescribe('ChangeEventPlugin', () => {
   let container;
 
   beforeEach(() => {
