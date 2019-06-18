@@ -667,226 +667,226 @@ describe('ReactIncrementalSideEffects', () => {
     );
   });
 
-  xit('can defer side-effects and resume them later on', () => {
-    class Bar extends React.Component {
-      shouldComponentUpdate(nextProps) {
-        return this.props.idx !== nextProps.idx;
-      }
-      render() {
-        return <span prop={this.props.idx} />;
-      }
-    }
-    function Foo(props) {
-      return (
-        <div>
-          <span prop={props.tick} />
-          <div hidden={true}>
-            <Bar idx={props.idx} />
-            <Bar idx={props.idx + 1} />
-          </div>
-        </div>
-      );
-    }
-    ReactNoop.render(<Foo tick={0} idx={0} />);
-    ReactNoop.flushDeferredPri(40 + 25);
-    expect(ReactNoop.getChildren()).toEqual([
-      div(
-        span(0),
-        div(/*the spans are down-prioritized and not rendered yet*/),
-      ),
-    ]);
-    ReactNoop.render(<Foo tick={1} idx={0} />);
-    ReactNoop.flushDeferredPri(35 + 25);
-    expect(ReactNoop.getChildren()).toEqual([
-      div(span(1), div(/*still not rendered yet*/)),
-    ]);
-    ReactNoop.flushDeferredPri(30 + 25);
-    expect(ReactNoop.getChildren()).toEqual([
-      div(
-        span(1),
-        div(
-          // Now we had enough time to finish the spans.
-          span(0),
-          span(1),
-        ),
-      ),
-    ]);
-    const innerSpanA = ReactNoop.getChildren()[0].children[1].children[1];
-    ReactNoop.render(<Foo tick={2} idx={1} />);
-    ReactNoop.flushDeferredPri(30 + 25);
-    expect(ReactNoop.getChildren()).toEqual([
-      div(
-        span(2),
-        div(
-          // Still same old numbers.
-          span(0),
-          span(1),
-        ),
-      ),
-    ]);
-    ReactNoop.render(<Foo tick={3} idx={1} />);
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(ReactNoop.getChildren()).toEqual([
-      div(
-        span(3),
-        div(
-          // New numbers.
-          span(1),
-          span(2),
-        ),
-      ),
-    ]);
-
-    const innerSpanB = ReactNoop.getChildren()[0].children[1].children[1];
-    // This should have been an update to an existing instance, not recreation.
-    // We verify that by ensuring that the child instance was the same as
-    // before.
-    expect(innerSpanA).toBe(innerSpanB);
-  });
-
-  xit('can defer side-effects and reuse them later - complex', function() {
-    let ops = [];
-
-    class Bar extends React.Component {
-      shouldComponentUpdate(nextProps) {
-        return this.props.idx !== nextProps.idx;
-      }
-      render() {
-        ops.push('Bar');
-        return <span prop={this.props.idx} />;
-      }
-    }
-    class Baz extends React.Component {
-      shouldComponentUpdate(nextProps) {
-        return this.props.idx !== nextProps.idx;
-      }
-      render() {
-        ops.push('Baz');
-        return [
-          <Bar key="a" idx={this.props.idx} />,
-          <Bar key="b" idx={this.props.idx} />,
-        ];
-      }
-    }
-    function Foo(props) {
-      ops.push('Foo');
-      return (
-        <div>
-          <span prop={props.tick} />
-          <div hidden={true}>
-            <Baz idx={props.idx} />
-            <Baz idx={props.idx} />
-            <Baz idx={props.idx} />
-          </div>
-        </div>
-      );
-    }
-    ReactNoop.render(<Foo tick={0} idx={0} />);
-    ReactNoop.flushDeferredPri(65 + 5);
-    expect(ReactNoop.getChildren()).toEqual([
-      div(
-        span(0),
-        div(/*the spans are down-prioritized and not rendered yet*/),
-      ),
-    ]);
-
-    expect(ops).toEqual(['Foo', 'Baz', 'Bar']);
-    ops = [];
-
-    ReactNoop.render(<Foo tick={1} idx={0} />);
-    ReactNoop.flushDeferredPri(70);
-    expect(ReactNoop.getChildren()).toEqual([
-      div(span(1), div(/*still not rendered yet*/)),
-    ]);
-
-    expect(ops).toEqual(['Foo']);
-    ops = [];
-
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(ReactNoop.getChildren()).toEqual([
-      div(
-        span(1),
-        div(
-          // Now we had enough time to finish the spans.
-          span(0),
-          span(0),
-          span(0),
-          span(0),
-          span(0),
-          span(0),
-        ),
-      ),
-    ]);
-
-    expect(ops).toEqual(['Bar', 'Baz', 'Bar', 'Bar', 'Baz', 'Bar', 'Bar']);
-    ops = [];
-
-    // Now we're going to update the index but we'll only let it finish half
-    // way through.
-    ReactNoop.render(<Foo tick={2} idx={1} />);
-    ReactNoop.flushDeferredPri(95);
-    expect(ReactNoop.getChildren()).toEqual([
-      div(
-        span(2),
-        div(
-          // Still same old numbers.
-          span(0),
-          span(0),
-          span(0),
-          span(0),
-          span(0),
-          span(0),
-        ),
-      ),
-    ]);
-
-    // We let it finish half way through. That means we'll have one fully
-    // completed Baz, one half-way completed Baz and one fully incomplete Baz.
-    expect(ops).toEqual(['Foo', 'Baz', 'Bar', 'Bar', 'Baz', 'Bar']);
-    ops = [];
-
-    // We'll update again, without letting the new index update yet. Only half
-    // way through.
-    ReactNoop.render(<Foo tick={3} idx={1} />);
-    ReactNoop.flushDeferredPri(50);
-    expect(ReactNoop.getChildren()).toEqual([
-      div(
-        span(3),
-        div(
-          // Old numbers.
-          span(0),
-          span(0),
-          span(0),
-          span(0),
-          span(0),
-          span(0),
-        ),
-      ),
-    ]);
-
-    expect(ops).toEqual(['Foo']);
-    ops = [];
-
-    // We should now be able to reuse some of the work we've already done
-    // and replay those side-effects.
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(ReactNoop.getChildren()).toEqual([
-      div(
-        span(3),
-        div(
-          // New numbers.
-          span(1),
-          span(1),
-          span(1),
-          span(1),
-          span(1),
-          span(1),
-        ),
-      ),
-    ]);
-
-    expect(ops).toEqual(['Bar', 'Baz', 'Bar', 'Bar']);
-  });
+  // xit('can defer side-effects and resume them later on', () => {
+  //   class Bar extends React.Component {
+  //     shouldComponentUpdate(nextProps) {
+  //       return this.props.idx !== nextProps.idx;
+  //     }
+  //     render() {
+  //       return <span prop={this.props.idx} />;
+  //     }
+  //   }
+  //   function Foo(props) {
+  //     return (
+  //       <div>
+  //         <span prop={props.tick} />
+  //         <div hidden={true}>
+  //           <Bar idx={props.idx} />
+  //           <Bar idx={props.idx + 1} />
+  //         </div>
+  //       </div>
+  //     );
+  //   }
+  //   ReactNoop.render(<Foo tick={0} idx={0} />);
+  //   ReactNoop.flushDeferredPri(40 + 25);
+  //   expect(ReactNoop.getChildren()).toEqual([
+  //     div(
+  //       span(0),
+  //       div(/*the spans are down-prioritized and not rendered yet*/),
+  //     ),
+  //   ]);
+  //   ReactNoop.render(<Foo tick={1} idx={0} />);
+  //   ReactNoop.flushDeferredPri(35 + 25);
+  //   expect(ReactNoop.getChildren()).toEqual([
+  //     div(span(1), div(/*still not rendered yet*/)),
+  //   ]);
+  //   ReactNoop.flushDeferredPri(30 + 25);
+  //   expect(ReactNoop.getChildren()).toEqual([
+  //     div(
+  //       span(1),
+  //       div(
+  //         // Now we had enough time to finish the spans.
+  //         span(0),
+  //         span(1),
+  //       ),
+  //     ),
+  //   ]);
+  //   const innerSpanA = ReactNoop.getChildren()[0].children[1].children[1];
+  //   ReactNoop.render(<Foo tick={2} idx={1} />);
+  //   ReactNoop.flushDeferredPri(30 + 25);
+  //   expect(ReactNoop.getChildren()).toEqual([
+  //     div(
+  //       span(2),
+  //       div(
+  //         // Still same old numbers.
+  //         span(0),
+  //         span(1),
+  //       ),
+  //     ),
+  //   ]);
+  //   ReactNoop.render(<Foo tick={3} idx={1} />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(ReactNoop.getChildren()).toEqual([
+  //     div(
+  //       span(3),
+  //       div(
+  //         // New numbers.
+  //         span(1),
+  //         span(2),
+  //       ),
+  //     ),
+  //   ]);
+  //
+  //   const innerSpanB = ReactNoop.getChildren()[0].children[1].children[1];
+  //   // This should have been an update to an existing instance, not recreation.
+  //   // We verify that by ensuring that the child instance was the same as
+  //   // before.
+  //   expect(innerSpanA).toBe(innerSpanB);
+  // });
+  //
+  // xit('can defer side-effects and reuse them later - complex', function() {
+  //   let ops = [];
+  //
+  //   class Bar extends React.Component {
+  //     shouldComponentUpdate(nextProps) {
+  //       return this.props.idx !== nextProps.idx;
+  //     }
+  //     render() {
+  //       ops.push('Bar');
+  //       return <span prop={this.props.idx} />;
+  //     }
+  //   }
+  //   class Baz extends React.Component {
+  //     shouldComponentUpdate(nextProps) {
+  //       return this.props.idx !== nextProps.idx;
+  //     }
+  //     render() {
+  //       ops.push('Baz');
+  //       return [
+  //         <Bar key="a" idx={this.props.idx} />,
+  //         <Bar key="b" idx={this.props.idx} />,
+  //       ];
+  //     }
+  //   }
+  //   function Foo(props) {
+  //     ops.push('Foo');
+  //     return (
+  //       <div>
+  //         <span prop={props.tick} />
+  //         <div hidden={true}>
+  //           <Baz idx={props.idx} />
+  //           <Baz idx={props.idx} />
+  //           <Baz idx={props.idx} />
+  //         </div>
+  //       </div>
+  //     );
+  //   }
+  //   ReactNoop.render(<Foo tick={0} idx={0} />);
+  //   ReactNoop.flushDeferredPri(65 + 5);
+  //   expect(ReactNoop.getChildren()).toEqual([
+  //     div(
+  //       span(0),
+  //       div(/*the spans are down-prioritized and not rendered yet*/),
+  //     ),
+  //   ]);
+  //
+  //   expect(ops).toEqual(['Foo', 'Baz', 'Bar']);
+  //   ops = [];
+  //
+  //   ReactNoop.render(<Foo tick={1} idx={0} />);
+  //   ReactNoop.flushDeferredPri(70);
+  //   expect(ReactNoop.getChildren()).toEqual([
+  //     div(span(1), div(/*still not rendered yet*/)),
+  //   ]);
+  //
+  //   expect(ops).toEqual(['Foo']);
+  //   ops = [];
+  //
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(ReactNoop.getChildren()).toEqual([
+  //     div(
+  //       span(1),
+  //       div(
+  //         // Now we had enough time to finish the spans.
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //       ),
+  //     ),
+  //   ]);
+  //
+  //   expect(ops).toEqual(['Bar', 'Baz', 'Bar', 'Bar', 'Baz', 'Bar', 'Bar']);
+  //   ops = [];
+  //
+  //   // Now we're going to update the index but we'll only let it finish half
+  //   // way through.
+  //   ReactNoop.render(<Foo tick={2} idx={1} />);
+  //   ReactNoop.flushDeferredPri(95);
+  //   expect(ReactNoop.getChildren()).toEqual([
+  //     div(
+  //       span(2),
+  //       div(
+  //         // Still same old numbers.
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //       ),
+  //     ),
+  //   ]);
+  //
+  //   // We let it finish half way through. That means we'll have one fully
+  //   // completed Baz, one half-way completed Baz and one fully incomplete Baz.
+  //   expect(ops).toEqual(['Foo', 'Baz', 'Bar', 'Bar', 'Baz', 'Bar']);
+  //   ops = [];
+  //
+  //   // We'll update again, without letting the new index update yet. Only half
+  //   // way through.
+  //   ReactNoop.render(<Foo tick={3} idx={1} />);
+  //   ReactNoop.flushDeferredPri(50);
+  //   expect(ReactNoop.getChildren()).toEqual([
+  //     div(
+  //       span(3),
+  //       div(
+  //         // Old numbers.
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //         span(0),
+  //       ),
+  //     ),
+  //   ]);
+  //
+  //   expect(ops).toEqual(['Foo']);
+  //   ops = [];
+  //
+  //   // We should now be able to reuse some of the work we've already done
+  //   // and replay those side-effects.
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(ReactNoop.getChildren()).toEqual([
+  //     div(
+  //       span(3),
+  //       div(
+  //         // New numbers.
+  //         span(1),
+  //         span(1),
+  //         span(1),
+  //         span(1),
+  //         span(1),
+  //         span(1),
+  //       ),
+  //     ),
+  //   ]);
+  //
+  //   expect(ops).toEqual(['Bar', 'Baz', 'Bar', 'Bar']);
+  // });
 
   it('deprioritizes setStates that happens within a deprioritized tree', () => {
     const barInstances = [];

@@ -199,34 +199,34 @@ describe('create-react-class-integration', () => {
   });
 
   // TODO: Consider actually moving these to statics or drop this unit test.
-  xit('should warn when using deprecated non-static spec keys', () => {
-    expect(() =>
-      createReactClass({
-        mixins: [{}],
-        propTypes: {
-          foo: PropTypes.string,
-        },
-        contextTypes: {
-          foo: PropTypes.string,
-        },
-        childContextTypes: {
-          foo: PropTypes.string,
-        },
-        render: function() {
-          return <div />;
-        },
-      }),
-    ).toWarnDev([
-      'createClass(...): `mixins` is now a static property and should ' +
-        'be defined inside "statics".',
-      'createClass(...): `propTypes` is now a static property and should ' +
-        'be defined inside "statics".',
-      'createClass(...): `contextTypes` is now a static property and ' +
-        'should be defined inside "statics".',
-      'createClass(...): `childContextTypes` is now a static property and ' +
-        'should be defined inside "statics".',
-    ]);
-  });
+  // xit('should warn when using deprecated non-static spec keys', () => {
+  //   expect(() =>
+  //     createReactClass({
+  //       mixins: [{}],
+  //       propTypes: {
+  //         foo: PropTypes.string,
+  //       },
+  //       contextTypes: {
+  //         foo: PropTypes.string,
+  //       },
+  //       childContextTypes: {
+  //         foo: PropTypes.string,
+  //       },
+  //       render: function() {
+  //         return <div />;
+  //       },
+  //     }),
+  //   ).toWarnDev([
+  //     'createClass(...): `mixins` is now a static property and should ' +
+  //       'be defined inside "statics".',
+  //     'createClass(...): `propTypes` is now a static property and should ' +
+  //       'be defined inside "statics".',
+  //     'createClass(...): `contextTypes` is now a static property and ' +
+  //       'should be defined inside "statics".',
+  //     'createClass(...): `childContextTypes` is now a static property and ' +
+  //       'should be defined inside "statics".',
+  //   ]);
+  // });
 
   it('should support statics', () => {
     const Component = createReactClass({

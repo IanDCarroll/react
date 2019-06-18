@@ -318,529 +318,529 @@ describe('ReactIncremental', () => {
     expect(ops).toEqual(['Middle', 'Middle']);
   });
 
-  xit('can resume work in a subtree even when a parent bails out', () => {
-    let ops = [];
-
-    function Bar(props) {
-      ops.push('Bar');
-      return <div>{props.children}</div>;
-    }
-
-    function Tester() {
-      // This component is just here to ensure that the bail out is
-      // in fact in effect in the expected place for this test.
-      ops.push('Tester');
-      return <div />;
-    }
-
-    function Middle(props) {
-      ops.push('Middle');
-      return <span>{props.children}</span>;
-    }
-
-    const middleContent = (
-      <aaa>
-        <Tester />
-        <bbb hidden={true}>
-          <ccc>
-            <Middle>Hi</Middle>
-          </ccc>
-        </bbb>
-      </aaa>
-    );
-
-    function Foo(props) {
-      ops.push('Foo');
-      return (
-        <div>
-          <Bar>{props.text}</Bar>
-          {middleContent}
-          <Bar>{props.text}</Bar>
-        </div>
-      );
-    }
-
-    // Init
-    ReactNoop.render(<Foo text="foo" />);
-    ReactNoop.flushDeferredPri(52);
-
-    expect(ops).toEqual(['Foo', 'Bar', 'Tester', 'Bar']);
-
-    ops = [];
-
-    // We're now rendering an update that will bail out on updating middle.
-    ReactNoop.render(<Foo text="bar" />);
-    ReactNoop.flushDeferredPri(45 + 5);
-
-    expect(ops).toEqual(['Foo', 'Bar', 'Bar']);
-
-    ops = [];
-
-    // Flush the rest to make sure that the bailout didn't block this work.
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(ops).toEqual(['Middle']);
-  });
-
-  xit('can resume work in a bailed subtree within one pass', () => {
-    let ops = [];
-
-    function Bar(props) {
-      ops.push('Bar');
-      return <div>{props.children}</div>;
-    }
-
-    class Tester extends React.Component {
-      shouldComponentUpdate() {
-        return false;
-      }
-      render() {
-        // This component is just here to ensure that the bail out is
-        // in fact in effect in the expected place for this test.
-        ops.push('Tester');
-        return <div />;
-      }
-    }
-
-    function Middle(props) {
-      ops.push('Middle');
-      return <span>{props.children}</span>;
-    }
-
-    // Should content not just bail out on current, not workInProgress?
-
-    class Content extends React.Component {
-      shouldComponentUpdate() {
-        return false;
-      }
-      render() {
-        return [
-          <Tester key="a" unused={this.props.unused} />,
-          <bbb key="b" hidden={true}>
-            <ccc>
-              <Middle>Hi</Middle>
-            </ccc>
-          </bbb>,
-        ];
-      }
-    }
-
-    function Foo(props) {
-      ops.push('Foo');
-      return (
-        <div hidden={props.text === 'bar'}>
-          <Bar>{props.text}</Bar>
-          <Content unused={props.text} />
-          <Bar>{props.text}</Bar>
-        </div>
-      );
-    }
-
-    // Init
-    ReactNoop.render(<Foo text="foo" />);
-    ReactNoop.flushDeferredPri(52 + 5);
-
-    expect(ops).toEqual(['Foo', 'Bar', 'Tester', 'Bar']);
-
-    ops = [];
-
-    // Make a quick update which will create a low pri tree on top of the
-    // already low pri tree.
-    ReactNoop.render(<Foo text="bar" />);
-    ReactNoop.flushDeferredPri(15);
-
-    expect(ops).toEqual(['Foo']);
-
-    ops = [];
-
-    // At this point, middle will bail out but it has not yet fully rendered.
-    // Since that is the same priority as its parent tree. This should render
-    // as a single batch. Therefore, it is correct that Middle should be in the
-    // middle. If it occurs after the two "Bar" components then it was flushed
-    // after them which is not correct.
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(ops).toEqual(['Bar', 'Middle', 'Bar']);
-
-    ops = [];
-
-    // Let us try this again without fully finishing the first time. This will
-    // create a hanging subtree that is reconciling at the normal priority.
-    ReactNoop.render(<Foo text="foo" />);
-    ReactNoop.flushDeferredPri(40);
-
-    expect(ops).toEqual(['Foo', 'Bar']);
-
-    ops = [];
-
-    // This update will create a tree that aborts that work and down-prioritizes
-    // it. If the priority levels aren't down-prioritized correctly this may
-    // abort rendering of the down-prioritized content.
-    ReactNoop.render(<Foo text="bar" />);
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(ops).toEqual(['Foo', 'Bar', 'Bar']);
-  });
-
-  xit('can resume mounting a class component', () => {
-    let ops = [];
-    let foo;
-    class Parent extends React.Component {
-      shouldComponentUpdate() {
-        return false;
-      }
-      render() {
-        return <Foo prop={this.props.prop} />;
-      }
-    }
-
-    class Foo extends React.Component {
-      constructor(props) {
-        super(props);
-        // Test based on a www bug where props was null on resume
-        ops.push('Foo constructor: ' + props.prop);
-      }
-      render() {
-        foo = this;
-        ops.push('Foo');
-        return <Bar />;
-      }
-    }
-
-    function Bar() {
-      ops.push('Bar');
-      return <div />;
-    }
-
-    ReactNoop.render(<Parent prop="foo" />);
-    ReactNoop.flushDeferredPri(20);
-    expect(ops).toEqual(['Foo constructor: foo', 'Foo']);
-
-    foo.setState({value: 'bar'});
-
-    ops = [];
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(ops).toEqual(['Foo', 'Bar']);
-  });
-
-  xit('reuses the same instance when resuming a class instance', () => {
-    let ops = [];
-    let foo;
-    class Parent extends React.Component {
-      shouldComponentUpdate() {
-        return false;
-      }
-      render() {
-        return <Foo prop={this.props.prop} />;
-      }
-    }
-
-    let constructorCount = 0;
-    class Foo extends React.Component {
-      constructor(props) {
-        super(props);
-        // Test based on a www bug where props was null on resume
-        ops.push('constructor: ' + props.prop);
-        constructorCount++;
-      }
-      UNSAFE_componentWillMount() {
-        ops.push('componentWillMount: ' + this.props.prop);
-      }
-      UNSAFE_componentWillReceiveProps() {
-        ops.push('componentWillReceiveProps: ' + this.props.prop);
-      }
-      componentDidMount() {
-        ops.push('componentDidMount: ' + this.props.prop);
-      }
-      UNSAFE_componentWillUpdate() {
-        ops.push('componentWillUpdate: ' + this.props.prop);
-      }
-      componentDidUpdate() {
-        ops.push('componentDidUpdate: ' + this.props.prop);
-      }
-      render() {
-        foo = this;
-        ops.push('render: ' + this.props.prop);
-        return <Bar />;
-      }
-    }
-
-    function Bar() {
-      ops.push('Foo did complete');
-      return <div />;
-    }
-
-    ReactNoop.render(<Parent prop="foo" />);
-    ReactNoop.flushDeferredPri(25);
-    expect(ops).toEqual([
-      'constructor: foo',
-      'componentWillMount: foo',
-      'render: foo',
-      'Foo did complete',
-    ]);
-
-    foo.setState({value: 'bar'});
-
-    ops = [];
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(constructorCount).toEqual(1);
-    expect(ops).toEqual([
-      'componentWillMount: foo',
-      'render: foo',
-      'Foo did complete',
-      'componentDidMount: foo',
-    ]);
-  });
-
-  xit('can reuse work done after being preempted', () => {
-    let ops = [];
-
-    function Bar(props) {
-      ops.push('Bar');
-      return <div>{props.children}</div>;
-    }
-
-    function Middle(props) {
-      ops.push('Middle');
-      return <span>{props.children}</span>;
-    }
-
-    const middleContent = (
-      <div>
-        <Middle>Hello</Middle>
-        <Bar>-</Bar>
-        <Middle>World</Middle>
-      </div>
-    );
-
-    const step0 = (
-      <div>
-        <Middle>Hi</Middle>
-        <Bar>{'Foo'}</Bar>
-        <Middle>There</Middle>
-      </div>
-    );
-
-    function Foo(props) {
-      ops.push('Foo');
-      return (
-        <div>
-          <Bar>{props.text2}</Bar>
-          <div hidden={true}>{props.step === 0 ? step0 : middleContent}</div>
-        </div>
-      );
-    }
-
-    // Init
-    ReactNoop.render(<Foo text="foo" text2="foo" step={0} />);
-    ReactNoop.flushDeferredPri(55 + 25 + 5 + 5);
-
-    // We only finish the higher priority work. So the low pri content
-    // has not yet finished mounting.
-    expect(ops).toEqual(['Foo', 'Bar', 'Middle', 'Bar']);
-
-    ops = [];
-
-    // Interrupt the rendering with a quick update. This should not touch the
-    // middle content.
-    ReactNoop.render(<Foo text="foo" text2="bar" step={0} />);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    // We've now rendered the entire tree but we didn't have to redo the work
-    // done by the first Middle and Bar already.
-    expect(ops).toEqual(['Foo', 'Bar', 'Middle']);
-
-    ops = [];
-
-    // Make a quick update which will schedule low priority work to
-    // update the middle content.
-    ReactNoop.render(<Foo text="bar" text2="bar" step={1} />);
-    ReactNoop.flushDeferredPri(30 + 25 + 5);
-
-    expect(ops).toEqual(['Foo', 'Bar']);
-
-    ops = [];
-
-    // The middle content is now pending rendering...
-    ReactNoop.flushDeferredPri(30 + 5);
-    expect(ops).toEqual(['Middle', 'Bar']);
-
-    ops = [];
-
-    // but we'll interrupt it to render some higher priority work.
-    // The middle content will bailout so it remains untouched.
-    ReactNoop.render(<Foo text="foo" text2="bar" step={1} />);
-    ReactNoop.flushDeferredPri(30);
-
-    expect(ops).toEqual(['Foo', 'Bar']);
-
-    ops = [];
-
-    // Since we did nothing to the middle subtree during the interruption,
-    // we should be able to reuse the reconciliation work that we already did
-    // without restarting.
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(ops).toEqual(['Middle']);
-  });
-
-  xit('can reuse work that began but did not complete, after being preempted', () => {
-    let ops = [];
-    let child;
-    let sibling;
-
-    function GreatGrandchild() {
-      ops.push('GreatGrandchild');
-      return <div />;
-    }
-
-    function Grandchild() {
-      ops.push('Grandchild');
-      return <GreatGrandchild />;
-    }
-
-    class Child extends React.Component {
-      state = {step: 0};
-      render() {
-        child = this;
-        ops.push('Child');
-        return <Grandchild />;
-      }
-    }
-
-    class Sibling extends React.Component {
-      render() {
-        ops.push('Sibling');
-        sibling = this;
-        return <div />;
-      }
-    }
-
-    function Parent() {
-      ops.push('Parent');
-      return [
-        // The extra div is necessary because when Parent bails out during the
-        // high priority update, its progressedPriority is set to high.
-        // So its direct children cannot be reused when we resume at
-        // low priority. I think this would be fixed by changing
-        // pendingWorkPriority and progressedPriority to be the priority of
-        // the children only, not including the fiber itself.
-        <div key="a">
-          <Child />
-        </div>,
-        <Sibling key="b" />,
-      ];
-    }
-
-    ReactNoop.render(<Parent />);
-    expect(Scheduler).toFlushWithoutYielding();
-    ops = [];
-
-    // Begin working on a low priority update to Child, but stop before
-    // GreatGrandchild. Child and Grandchild begin but don't complete.
-    child.setState({step: 1});
-    ReactNoop.flushDeferredPri(30);
-    expect(ops).toEqual(['Child', 'Grandchild']);
-
-    // Interrupt the current low pri work with a high pri update elsewhere in
-    // the tree.
-    ops = [];
-    ReactNoop.flushSync(() => {
-      sibling.setState({});
-    });
-    expect(ops).toEqual(['Sibling']);
-
-    // Continue the low pri work. The work on Child and GrandChild was memoized
-    // so they should not be worked on again.
-    ops = [];
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(ops).toEqual([
-      // No Child
-      // No Grandchild
-      'GreatGrandchild',
-    ]);
-  });
-
-  xit('can reuse work if shouldComponentUpdate is false, after being preempted', () => {
-    let ops = [];
-
-    function Bar(props) {
-      ops.push('Bar');
-      return <div>{props.children}</div>;
-    }
-
-    class Middle extends React.Component {
-      shouldComponentUpdate(nextProps) {
-        return this.props.children !== nextProps.children;
-      }
-      render() {
-        ops.push('Middle');
-        return <span>{this.props.children}</span>;
-      }
-    }
-
-    class Content extends React.Component {
-      shouldComponentUpdate(nextProps) {
-        return this.props.step !== nextProps.step;
-      }
-      render() {
-        ops.push('Content');
-        return (
-          <div>
-            <Middle>{this.props.step === 0 ? 'Hi' : 'Hello'}</Middle>
-            <Bar>{this.props.step === 0 ? this.props.text : '-'}</Bar>
-            <Middle>{this.props.step === 0 ? 'There' : 'World'}</Middle>
-          </div>
-        );
-      }
-    }
-
-    function Foo(props) {
-      ops.push('Foo');
-      return (
-        <div>
-          <Bar>{props.text}</Bar>
-          <div hidden={true}>
-            <Content step={props.step} text={props.text} />
-          </div>
-        </div>
-      );
-    }
-
-    // Init
-    ReactNoop.render(<Foo text="foo" step={0} />);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    expect(ops).toEqual(['Foo', 'Bar', 'Content', 'Middle', 'Bar', 'Middle']);
-
-    ops = [];
-
-    // Make a quick update which will schedule low priority work to
-    // update the middle content.
-    ReactNoop.render(<Foo text="bar" step={1} />);
-    ReactNoop.flushDeferredPri(30 + 5);
-
-    expect(ops).toEqual(['Foo', 'Bar']);
-
-    ops = [];
-
-    // The middle content is now pending rendering...
-    ReactNoop.flushDeferredPri(30 + 25 + 5);
-    expect(ops).toEqual(['Content', 'Middle', 'Bar']); // One more Middle left.
-
-    ops = [];
-
-    // but we'll interrupt it to render some higher priority work.
-    // The middle content will bailout so it remains untouched.
-    ReactNoop.render(<Foo text="foo" step={1} />);
-    ReactNoop.flushDeferredPri(30);
-
-    expect(ops).toEqual(['Foo', 'Bar']);
-
-    ops = [];
-
-    // Since we did nothing to the middle subtree during the interruption,
-    // we should be able to reuse the reconciliation work that we already did
-    // without restarting.
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(ops).toEqual(['Middle']);
-  });
+  // xit('can resume work in a subtree even when a parent bails out', () => {
+  //   let ops = [];
+  //
+  //   function Bar(props) {
+  //     ops.push('Bar');
+  //     return <div>{props.children}</div>;
+  //   }
+  //
+  //   function Tester() {
+  //     // This component is just here to ensure that the bail out is
+  //     // in fact in effect in the expected place for this test.
+  //     ops.push('Tester');
+  //     return <div />;
+  //   }
+  //
+  //   function Middle(props) {
+  //     ops.push('Middle');
+  //     return <span>{props.children}</span>;
+  //   }
+  //
+  //   const middleContent = (
+  //     <aaa>
+  //       <Tester />
+  //       <bbb hidden={true}>
+  //         <ccc>
+  //           <Middle>Hi</Middle>
+  //         </ccc>
+  //       </bbb>
+  //     </aaa>
+  //   );
+  //
+  //   function Foo(props) {
+  //     ops.push('Foo');
+  //     return (
+  //       <div>
+  //         <Bar>{props.text}</Bar>
+  //         {middleContent}
+  //         <Bar>{props.text}</Bar>
+  //       </div>
+  //     );
+  //   }
+  //
+  //   // Init
+  //   ReactNoop.render(<Foo text="foo" />);
+  //   ReactNoop.flushDeferredPri(52);
+  //
+  //   expect(ops).toEqual(['Foo', 'Bar', 'Tester', 'Bar']);
+  //
+  //   ops = [];
+  //
+  //   // We're now rendering an update that will bail out on updating middle.
+  //   ReactNoop.render(<Foo text="bar" />);
+  //   ReactNoop.flushDeferredPri(45 + 5);
+  //
+  //   expect(ops).toEqual(['Foo', 'Bar', 'Bar']);
+  //
+  //   ops = [];
+  //
+  //   // Flush the rest to make sure that the bailout didn't block this work.
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(ops).toEqual(['Middle']);
+  // });
+  //
+  // xit('can resume work in a bailed subtree within one pass', () => {
+  //   let ops = [];
+  //
+  //   function Bar(props) {
+  //     ops.push('Bar');
+  //     return <div>{props.children}</div>;
+  //   }
+  //
+  //   class Tester extends React.Component {
+  //     shouldComponentUpdate() {
+  //       return false;
+  //     }
+  //     render() {
+  //       // This component is just here to ensure that the bail out is
+  //       // in fact in effect in the expected place for this test.
+  //       ops.push('Tester');
+  //       return <div />;
+  //     }
+  //   }
+  //
+  //   function Middle(props) {
+  //     ops.push('Middle');
+  //     return <span>{props.children}</span>;
+  //   }
+  //
+  //   // Should content not just bail out on current, not workInProgress?
+  //
+  //   class Content extends React.Component {
+  //     shouldComponentUpdate() {
+  //       return false;
+  //     }
+  //     render() {
+  //       return [
+  //         <Tester key="a" unused={this.props.unused} />,
+  //         <bbb key="b" hidden={true}>
+  //           <ccc>
+  //             <Middle>Hi</Middle>
+  //           </ccc>
+  //         </bbb>,
+  //       ];
+  //     }
+  //   }
+  //
+  //   function Foo(props) {
+  //     ops.push('Foo');
+  //     return (
+  //       <div hidden={props.text === 'bar'}>
+  //         <Bar>{props.text}</Bar>
+  //         <Content unused={props.text} />
+  //         <Bar>{props.text}</Bar>
+  //       </div>
+  //     );
+  //   }
+  //
+  //   // Init
+  //   ReactNoop.render(<Foo text="foo" />);
+  //   ReactNoop.flushDeferredPri(52 + 5);
+  //
+  //   expect(ops).toEqual(['Foo', 'Bar', 'Tester', 'Bar']);
+  //
+  //   ops = [];
+  //
+  //   // Make a quick update which will create a low pri tree on top of the
+  //   // already low pri tree.
+  //   ReactNoop.render(<Foo text="bar" />);
+  //   ReactNoop.flushDeferredPri(15);
+  //
+  //   expect(ops).toEqual(['Foo']);
+  //
+  //   ops = [];
+  //
+  //   // At this point, middle will bail out but it has not yet fully rendered.
+  //   // Since that is the same priority as its parent tree. This should render
+  //   // as a single batch. Therefore, it is correct that Middle should be in the
+  //   // middle. If it occurs after the two "Bar" components then it was flushed
+  //   // after them which is not correct.
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(ops).toEqual(['Bar', 'Middle', 'Bar']);
+  //
+  //   ops = [];
+  //
+  //   // Let us try this again without fully finishing the first time. This will
+  //   // create a hanging subtree that is reconciling at the normal priority.
+  //   ReactNoop.render(<Foo text="foo" />);
+  //   ReactNoop.flushDeferredPri(40);
+  //
+  //   expect(ops).toEqual(['Foo', 'Bar']);
+  //
+  //   ops = [];
+  //
+  //   // This update will create a tree that aborts that work and down-prioritizes
+  //   // it. If the priority levels aren't down-prioritized correctly this may
+  //   // abort rendering of the down-prioritized content.
+  //   ReactNoop.render(<Foo text="bar" />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(ops).toEqual(['Foo', 'Bar', 'Bar']);
+  // });
+  //
+  // xit('can resume mounting a class component', () => {
+  //   let ops = [];
+  //   let foo;
+  //   class Parent extends React.Component {
+  //     shouldComponentUpdate() {
+  //       return false;
+  //     }
+  //     render() {
+  //       return <Foo prop={this.props.prop} />;
+  //     }
+  //   }
+  //
+  //   class Foo extends React.Component {
+  //     constructor(props) {
+  //       super(props);
+  //       // Test based on a www bug where props was null on resume
+  //       ops.push('Foo constructor: ' + props.prop);
+  //     }
+  //     render() {
+  //       foo = this;
+  //       ops.push('Foo');
+  //       return <Bar />;
+  //     }
+  //   }
+  //
+  //   function Bar() {
+  //     ops.push('Bar');
+  //     return <div />;
+  //   }
+  //
+  //   ReactNoop.render(<Parent prop="foo" />);
+  //   ReactNoop.flushDeferredPri(20);
+  //   expect(ops).toEqual(['Foo constructor: foo', 'Foo']);
+  //
+  //   foo.setState({value: 'bar'});
+  //
+  //   ops = [];
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(ops).toEqual(['Foo', 'Bar']);
+  // });
+  //
+  // xit('reuses the same instance when resuming a class instance', () => {
+  //   let ops = [];
+  //   let foo;
+  //   class Parent extends React.Component {
+  //     shouldComponentUpdate() {
+  //       return false;
+  //     }
+  //     render() {
+  //       return <Foo prop={this.props.prop} />;
+  //     }
+  //   }
+  //
+  //   let constructorCount = 0;
+  //   class Foo extends React.Component {
+  //     constructor(props) {
+  //       super(props);
+  //       // Test based on a www bug where props was null on resume
+  //       ops.push('constructor: ' + props.prop);
+  //       constructorCount++;
+  //     }
+  //     UNSAFE_componentWillMount() {
+  //       ops.push('componentWillMount: ' + this.props.prop);
+  //     }
+  //     UNSAFE_componentWillReceiveProps() {
+  //       ops.push('componentWillReceiveProps: ' + this.props.prop);
+  //     }
+  //     componentDidMount() {
+  //       ops.push('componentDidMount: ' + this.props.prop);
+  //     }
+  //     UNSAFE_componentWillUpdate() {
+  //       ops.push('componentWillUpdate: ' + this.props.prop);
+  //     }
+  //     componentDidUpdate() {
+  //       ops.push('componentDidUpdate: ' + this.props.prop);
+  //     }
+  //     render() {
+  //       foo = this;
+  //       ops.push('render: ' + this.props.prop);
+  //       return <Bar />;
+  //     }
+  //   }
+  //
+  //   function Bar() {
+  //     ops.push('Foo did complete');
+  //     return <div />;
+  //   }
+  //
+  //   ReactNoop.render(<Parent prop="foo" />);
+  //   ReactNoop.flushDeferredPri(25);
+  //   expect(ops).toEqual([
+  //     'constructor: foo',
+  //     'componentWillMount: foo',
+  //     'render: foo',
+  //     'Foo did complete',
+  //   ]);
+  //
+  //   foo.setState({value: 'bar'});
+  //
+  //   ops = [];
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(constructorCount).toEqual(1);
+  //   expect(ops).toEqual([
+  //     'componentWillMount: foo',
+  //     'render: foo',
+  //     'Foo did complete',
+  //     'componentDidMount: foo',
+  //   ]);
+  // });
+  //
+  // xit('can reuse work done after being preempted', () => {
+  //   let ops = [];
+  //
+  //   function Bar(props) {
+  //     ops.push('Bar');
+  //     return <div>{props.children}</div>;
+  //   }
+  //
+  //   function Middle(props) {
+  //     ops.push('Middle');
+  //     return <span>{props.children}</span>;
+  //   }
+  //
+  //   const middleContent = (
+  //     <div>
+  //       <Middle>Hello</Middle>
+  //       <Bar>-</Bar>
+  //       <Middle>World</Middle>
+  //     </div>
+  //   );
+  //
+  //   const step0 = (
+  //     <div>
+  //       <Middle>Hi</Middle>
+  //       <Bar>{'Foo'}</Bar>
+  //       <Middle>There</Middle>
+  //     </div>
+  //   );
+  //
+  //   function Foo(props) {
+  //     ops.push('Foo');
+  //     return (
+  //       <div>
+  //         <Bar>{props.text2}</Bar>
+  //         <div hidden={true}>{props.step === 0 ? step0 : middleContent}</div>
+  //       </div>
+  //     );
+  //   }
+  //
+  //   // Init
+  //   ReactNoop.render(<Foo text="foo" text2="foo" step={0} />);
+  //   ReactNoop.flushDeferredPri(55 + 25 + 5 + 5);
+  //
+  //   // We only finish the higher priority work. So the low pri content
+  //   // has not yet finished mounting.
+  //   expect(ops).toEqual(['Foo', 'Bar', 'Middle', 'Bar']);
+  //
+  //   ops = [];
+  //
+  //   // Interrupt the rendering with a quick update. This should not touch the
+  //   // middle content.
+  //   ReactNoop.render(<Foo text="foo" text2="bar" step={0} />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   // We've now rendered the entire tree but we didn't have to redo the work
+  //   // done by the first Middle and Bar already.
+  //   expect(ops).toEqual(['Foo', 'Bar', 'Middle']);
+  //
+  //   ops = [];
+  //
+  //   // Make a quick update which will schedule low priority work to
+  //   // update the middle content.
+  //   ReactNoop.render(<Foo text="bar" text2="bar" step={1} />);
+  //   ReactNoop.flushDeferredPri(30 + 25 + 5);
+  //
+  //   expect(ops).toEqual(['Foo', 'Bar']);
+  //
+  //   ops = [];
+  //
+  //   // The middle content is now pending rendering...
+  //   ReactNoop.flushDeferredPri(30 + 5);
+  //   expect(ops).toEqual(['Middle', 'Bar']);
+  //
+  //   ops = [];
+  //
+  //   // but we'll interrupt it to render some higher priority work.
+  //   // The middle content will bailout so it remains untouched.
+  //   ReactNoop.render(<Foo text="foo" text2="bar" step={1} />);
+  //   ReactNoop.flushDeferredPri(30);
+  //
+  //   expect(ops).toEqual(['Foo', 'Bar']);
+  //
+  //   ops = [];
+  //
+  //   // Since we did nothing to the middle subtree during the interruption,
+  //   // we should be able to reuse the reconciliation work that we already did
+  //   // without restarting.
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(ops).toEqual(['Middle']);
+  // });
+  //
+  // xit('can reuse work that began but did not complete, after being preempted', () => {
+  //   let ops = [];
+  //   let child;
+  //   let sibling;
+  //
+  //   function GreatGrandchild() {
+  //     ops.push('GreatGrandchild');
+  //     return <div />;
+  //   }
+  //
+  //   function Grandchild() {
+  //     ops.push('Grandchild');
+  //     return <GreatGrandchild />;
+  //   }
+  //
+  //   class Child extends React.Component {
+  //     state = {step: 0};
+  //     render() {
+  //       child = this;
+  //       ops.push('Child');
+  //       return <Grandchild />;
+  //     }
+  //   }
+  //
+  //   class Sibling extends React.Component {
+  //     render() {
+  //       ops.push('Sibling');
+  //       sibling = this;
+  //       return <div />;
+  //     }
+  //   }
+  //
+  //   function Parent() {
+  //     ops.push('Parent');
+  //     return [
+  //       // The extra div is necessary because when Parent bails out during the
+  //       // high priority update, its progressedPriority is set to high.
+  //       // So its direct children cannot be reused when we resume at
+  //       // low priority. I think this would be fixed by changing
+  //       // pendingWorkPriority and progressedPriority to be the priority of
+  //       // the children only, not including the fiber itself.
+  //       <div key="a">
+  //         <Child />
+  //       </div>,
+  //       <Sibling key="b" />,
+  //     ];
+  //   }
+  //
+  //   ReactNoop.render(<Parent />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   ops = [];
+  //
+  //   // Begin working on a low priority update to Child, but stop before
+  //   // GreatGrandchild. Child and Grandchild begin but don't complete.
+  //   child.setState({step: 1});
+  //   ReactNoop.flushDeferredPri(30);
+  //   expect(ops).toEqual(['Child', 'Grandchild']);
+  //
+  //   // Interrupt the current low pri work with a high pri update elsewhere in
+  //   // the tree.
+  //   ops = [];
+  //   ReactNoop.flushSync(() => {
+  //     sibling.setState({});
+  //   });
+  //   expect(ops).toEqual(['Sibling']);
+  //
+  //   // Continue the low pri work. The work on Child and GrandChild was memoized
+  //   // so they should not be worked on again.
+  //   ops = [];
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(ops).toEqual([
+  //     // No Child
+  //     // No Grandchild
+  //     'GreatGrandchild',
+  //   ]);
+  // });
+  //
+  // xit('can reuse work if shouldComponentUpdate is false, after being preempted', () => {
+  //   let ops = [];
+  //
+  //   function Bar(props) {
+  //     ops.push('Bar');
+  //     return <div>{props.children}</div>;
+  //   }
+  //
+  //   class Middle extends React.Component {
+  //     shouldComponentUpdate(nextProps) {
+  //       return this.props.children !== nextProps.children;
+  //     }
+  //     render() {
+  //       ops.push('Middle');
+  //       return <span>{this.props.children}</span>;
+  //     }
+  //   }
+  //
+  //   class Content extends React.Component {
+  //     shouldComponentUpdate(nextProps) {
+  //       return this.props.step !== nextProps.step;
+  //     }
+  //     render() {
+  //       ops.push('Content');
+  //       return (
+  //         <div>
+  //           <Middle>{this.props.step === 0 ? 'Hi' : 'Hello'}</Middle>
+  //           <Bar>{this.props.step === 0 ? this.props.text : '-'}</Bar>
+  //           <Middle>{this.props.step === 0 ? 'There' : 'World'}</Middle>
+  //         </div>
+  //       );
+  //     }
+  //   }
+  //
+  //   function Foo(props) {
+  //     ops.push('Foo');
+  //     return (
+  //       <div>
+  //         <Bar>{props.text}</Bar>
+  //         <div hidden={true}>
+  //           <Content step={props.step} text={props.text} />
+  //         </div>
+  //       </div>
+  //     );
+  //   }
+  //
+  //   // Init
+  //   ReactNoop.render(<Foo text="foo" step={0} />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   expect(ops).toEqual(['Foo', 'Bar', 'Content', 'Middle', 'Bar', 'Middle']);
+  //
+  //   ops = [];
+  //
+  //   // Make a quick update which will schedule low priority work to
+  //   // update the middle content.
+  //   ReactNoop.render(<Foo text="bar" step={1} />);
+  //   ReactNoop.flushDeferredPri(30 + 5);
+  //
+  //   expect(ops).toEqual(['Foo', 'Bar']);
+  //
+  //   ops = [];
+  //
+  //   // The middle content is now pending rendering...
+  //   ReactNoop.flushDeferredPri(30 + 25 + 5);
+  //   expect(ops).toEqual(['Content', 'Middle', 'Bar']); // One more Middle left.
+  //
+  //   ops = [];
+  //
+  //   // but we'll interrupt it to render some higher priority work.
+  //   // The middle content will bailout so it remains untouched.
+  //   ReactNoop.render(<Foo text="foo" step={1} />);
+  //   ReactNoop.flushDeferredPri(30);
+  //
+  //   expect(ops).toEqual(['Foo', 'Bar']);
+  //
+  //   ops = [];
+  //
+  //   // Since we did nothing to the middle subtree during the interruption,
+  //   // we should be able to reuse the reconciliation work that we already did
+  //   // without restarting.
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(ops).toEqual(['Middle']);
+  // });
 
   it('memoizes work even if shouldComponentUpdate returns false', () => {
     let ops = [];
@@ -1103,312 +1103,312 @@ describe('ReactIncremental', () => {
     expect(Scheduler).toFlushAndYield([]);
   });
 
-  xit('can call sCU while resuming a partly mounted component', () => {
-    let ops = [];
-
-    const instances = new Set();
-
-    class Bar extends React.Component {
-      state = {y: 'A'};
-      constructor() {
-        super();
-        instances.add(this);
-      }
-      shouldComponentUpdate(newProps, newState) {
-        return this.props.x !== newProps.x || this.state.y !== newState.y;
-      }
-      render() {
-        ops.push('Bar:' + this.props.x);
-        return <span prop={'' + (this.props.x === this.state.y)} />;
-      }
-    }
-
-    function Foo(props) {
-      ops.push('Foo');
-      return [
-        <Bar key="a" x="A" />,
-        <Bar key="b" x={props.step === 0 ? 'B' : 'B2'} />,
-        <Bar key="c" x="C" />,
-        <Bar key="d" x="D" />,
-      ];
-    }
-
-    ReactNoop.render(<Foo step={0} />);
-    ReactNoop.flushDeferredPri(40);
-    expect(ops).toEqual(['Foo', 'Bar:A', 'Bar:B', 'Bar:C']);
-
-    expect(instances.size).toBe(3);
-
-    ops = [];
-
-    ReactNoop.render(<Foo step={1} />);
-    ReactNoop.flushDeferredPri(50);
-    // A was memoized and reused. B was memoized but couldn't be reused because
-    // props differences. C was memoized and reused. D never even started so it
-    // needed a new instance.
-    expect(ops).toEqual(['Foo', 'Bar:B2', 'Bar:D']);
-
-    // We expect each rerender to correspond to a new instance.
-    expect(instances.size).toBe(4);
-  });
-
-  xit('gets new props when setting state on a partly updated component', () => {
-    let ops = [];
-    const instances = [];
-
-    class Bar extends React.Component {
-      state = {y: 'A'};
-      constructor() {
-        super();
-        instances.push(this);
-      }
-      performAction() {
-        this.setState({
-          y: 'B',
-        });
-      }
-      render() {
-        ops.push('Bar:' + this.props.x + '-' + this.props.step);
-        return <span prop={'' + (this.props.x === this.state.y)} />;
-      }
-    }
-
-    function Baz() {
-      // This component is used as a sibling to Foo so that we can fully
-      // complete Foo, without committing.
-      ops.push('Baz');
-      return <div />;
-    }
-
-    function Foo(props) {
-      ops.push('Foo');
-      return [
-        <Bar key="a" x="A" step={props.step} />,
-        <Bar key="b" x="B" step={props.step} />,
-      ];
-    }
-
-    ReactNoop.render(
-      <div>
-        <Foo step={0} />
-        <Baz />
-        <Baz />
-      </div>,
-    );
-    expect(Scheduler).toFlushWithoutYielding();
-
-    ops = [];
-
-    // Flush part way through with new props, fully completing the first Bar.
-    // However, it doesn't commit yet.
-    ReactNoop.render(
-      <div>
-        <Foo step={1} />
-        <Baz />
-        <Baz />
-      </div>,
-    );
-    ReactNoop.flushDeferredPri(45);
-    expect(ops).toEqual(['Foo', 'Bar:A-1', 'Bar:B-1', 'Baz']);
-
-    // Make an update to the same Bar.
-    instances[0].performAction();
-
-    ops = [];
-
-    expect(Scheduler).toFlushWithoutYielding();
-    expect(ops).toEqual(['Bar:A-1', 'Baz']);
-  });
-
-  xit('calls componentWillMount twice if the initial render is aborted', () => {
-    let ops = [];
-
-    class LifeCycle extends React.Component {
-      state = {x: this.props.x};
-      UNSAFE_componentWillReceiveProps(nextProps) {
-        ops.push(
-          'componentWillReceiveProps:' + this.state.x + '-' + nextProps.x,
-        );
-        this.setState({x: nextProps.x});
-      }
-      UNSAFE_componentWillMount() {
-        ops.push('componentWillMount:' + this.state.x + '-' + this.props.x);
-      }
-      componentDidMount() {
-        ops.push('componentDidMount:' + this.state.x + '-' + this.props.x);
-      }
-      render() {
-        return <span />;
-      }
-    }
-
-    function Trail() {
-      ops.push('Trail');
-      return null;
-    }
-
-    function App(props) {
-      ops.push('App');
-      return (
-        <div>
-          <LifeCycle x={props.x} />
-          <Trail />
-        </div>
-      );
-    }
-
-    ReactNoop.render(<App x={0} />);
-    ReactNoop.flushDeferredPri(30);
-
-    expect(ops).toEqual(['App', 'componentWillMount:0-0']);
-
-    ops = [];
-
-    ReactNoop.render(<App x={1} />);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    expect(ops).toEqual([
-      'App',
-      'componentWillReceiveProps:0-1',
-      'componentWillMount:1-1',
-      'Trail',
-      'componentDidMount:1-1',
-    ]);
-  });
-
-  xit('uses state set in componentWillMount even if initial render was aborted', () => {
-    let ops = [];
-
-    class LifeCycle extends React.Component {
-      constructor(props) {
-        super(props);
-        this.state = {x: this.props.x + '(ctor)'};
-      }
-      UNSAFE_componentWillMount() {
-        ops.push('componentWillMount:' + this.state.x);
-        this.setState({x: this.props.x + '(willMount)'});
-      }
-      componentDidMount() {
-        ops.push('componentDidMount:' + this.state.x);
-      }
-      render() {
-        ops.push('render:' + this.state.x);
-        return <span />;
-      }
-    }
-
-    function App(props) {
-      ops.push('App');
-      return <LifeCycle x={props.x} />;
-    }
-
-    ReactNoop.render(<App x={0} />);
-    ReactNoop.flushDeferredPri(20);
-
-    expect(ops).toEqual([
-      'App',
-      'componentWillMount:0(ctor)',
-      'render:0(willMount)',
-    ]);
-
-    ops = [];
-    ReactNoop.render(<App x={1} />);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    expect(ops).toEqual([
-      'App',
-      'componentWillMount:0(willMount)',
-      'render:1(willMount)',
-      'componentDidMount:1(willMount)',
-    ]);
-  });
-
-  xit('calls componentWill* twice if an update render is aborted', () => {
-    let ops = [];
-
-    class LifeCycle extends React.Component {
-      UNSAFE_componentWillMount() {
-        ops.push('componentWillMount:' + this.props.x);
-      }
-      componentDidMount() {
-        ops.push('componentDidMount:' + this.props.x);
-      }
-      UNSAFE_componentWillReceiveProps(nextProps) {
-        ops.push(
-          'componentWillReceiveProps:' + this.props.x + '-' + nextProps.x,
-        );
-      }
-      shouldComponentUpdate(nextProps) {
-        ops.push('shouldComponentUpdate:' + this.props.x + '-' + nextProps.x);
-        return true;
-      }
-      UNSAFE_componentWillUpdate(nextProps) {
-        ops.push('componentWillUpdate:' + this.props.x + '-' + nextProps.x);
-      }
-      componentDidUpdate(prevProps) {
-        ops.push('componentDidUpdate:' + this.props.x + '-' + prevProps.x);
-      }
-      render() {
-        ops.push('render:' + this.props.x);
-        return <span />;
-      }
-    }
-
-    function Sibling() {
-      // The sibling is used to confirm that we've completed the first child,
-      // but not yet flushed.
-      ops.push('Sibling');
-      return <span />;
-    }
-
-    function App(props) {
-      ops.push('App');
-
-      return [<LifeCycle key="a" x={props.x} />, <Sibling key="b" />];
-    }
-
-    ReactNoop.render(<App x={0} />);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    expect(ops).toEqual([
-      'App',
-      'componentWillMount:0',
-      'render:0',
-      'Sibling',
-      'componentDidMount:0',
-    ]);
-
-    ops = [];
-
-    ReactNoop.render(<App x={1} />);
-    ReactNoop.flushDeferredPri(30);
-
-    expect(ops).toEqual([
-      'App',
-      'componentWillReceiveProps:0-1',
-      'shouldComponentUpdate:0-1',
-      'componentWillUpdate:0-1',
-      'render:1',
-      'Sibling',
-      // no componentDidUpdate
-    ]);
-
-    ops = [];
-
-    ReactNoop.render(<App x={2} />);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    expect(ops).toEqual([
-      'App',
-      'componentWillReceiveProps:1-2',
-      'shouldComponentUpdate:1-2',
-      'componentWillUpdate:1-2',
-      'render:2',
-      'Sibling',
-      // When componentDidUpdate finally gets called, it covers both updates.
-      'componentDidUpdate:2-0',
-    ]);
-  });
+  // xit('can call sCU while resuming a partly mounted component', () => {
+  //   let ops = [];
+  //
+  //   const instances = new Set();
+  //
+  //   class Bar extends React.Component {
+  //     state = {y: 'A'};
+  //     constructor() {
+  //       super();
+  //       instances.add(this);
+  //     }
+  //     shouldComponentUpdate(newProps, newState) {
+  //       return this.props.x !== newProps.x || this.state.y !== newState.y;
+  //     }
+  //     render() {
+  //       ops.push('Bar:' + this.props.x);
+  //       return <span prop={'' + (this.props.x === this.state.y)} />;
+  //     }
+  //   }
+  //
+  //   function Foo(props) {
+  //     ops.push('Foo');
+  //     return [
+  //       <Bar key="a" x="A" />,
+  //       <Bar key="b" x={props.step === 0 ? 'B' : 'B2'} />,
+  //       <Bar key="c" x="C" />,
+  //       <Bar key="d" x="D" />,
+  //     ];
+  //   }
+  //
+  //   ReactNoop.render(<Foo step={0} />);
+  //   ReactNoop.flushDeferredPri(40);
+  //   expect(ops).toEqual(['Foo', 'Bar:A', 'Bar:B', 'Bar:C']);
+  //
+  //   expect(instances.size).toBe(3);
+  //
+  //   ops = [];
+  //
+  //   ReactNoop.render(<Foo step={1} />);
+  //   ReactNoop.flushDeferredPri(50);
+  //   // A was memoized and reused. B was memoized but couldn't be reused because
+  //   // props differences. C was memoized and reused. D never even started so it
+  //   // needed a new instance.
+  //   expect(ops).toEqual(['Foo', 'Bar:B2', 'Bar:D']);
+  //
+  //   // We expect each rerender to correspond to a new instance.
+  //   expect(instances.size).toBe(4);
+  // });
+  //
+  // xit('gets new props when setting state on a partly updated component', () => {
+  //   let ops = [];
+  //   const instances = [];
+  //
+  //   class Bar extends React.Component {
+  //     state = {y: 'A'};
+  //     constructor() {
+  //       super();
+  //       instances.push(this);
+  //     }
+  //     performAction() {
+  //       this.setState({
+  //         y: 'B',
+  //       });
+  //     }
+  //     render() {
+  //       ops.push('Bar:' + this.props.x + '-' + this.props.step);
+  //       return <span prop={'' + (this.props.x === this.state.y)} />;
+  //     }
+  //   }
+  //
+  //   function Baz() {
+  //     // This component is used as a sibling to Foo so that we can fully
+  //     // complete Foo, without committing.
+  //     ops.push('Baz');
+  //     return <div />;
+  //   }
+  //
+  //   function Foo(props) {
+  //     ops.push('Foo');
+  //     return [
+  //       <Bar key="a" x="A" step={props.step} />,
+  //       <Bar key="b" x="B" step={props.step} />,
+  //     ];
+  //   }
+  //
+  //   ReactNoop.render(
+  //     <div>
+  //       <Foo step={0} />
+  //       <Baz />
+  //       <Baz />
+  //     </div>,
+  //   );
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   ops = [];
+  //
+  //   // Flush part way through with new props, fully completing the first Bar.
+  //   // However, it doesn't commit yet.
+  //   ReactNoop.render(
+  //     <div>
+  //       <Foo step={1} />
+  //       <Baz />
+  //       <Baz />
+  //     </div>,
+  //   );
+  //   ReactNoop.flushDeferredPri(45);
+  //   expect(ops).toEqual(['Foo', 'Bar:A-1', 'Bar:B-1', 'Baz']);
+  //
+  //   // Make an update to the same Bar.
+  //   instances[0].performAction();
+  //
+  //   ops = [];
+  //
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //   expect(ops).toEqual(['Bar:A-1', 'Baz']);
+  // });
+  //
+  // xit('calls componentWillMount twice if the initial render is aborted', () => {
+  //   let ops = [];
+  //
+  //   class LifeCycle extends React.Component {
+  //     state = {x: this.props.x};
+  //     UNSAFE_componentWillReceiveProps(nextProps) {
+  //       ops.push(
+  //         'componentWillReceiveProps:' + this.state.x + '-' + nextProps.x,
+  //       );
+  //       this.setState({x: nextProps.x});
+  //     }
+  //     UNSAFE_componentWillMount() {
+  //       ops.push('componentWillMount:' + this.state.x + '-' + this.props.x);
+  //     }
+  //     componentDidMount() {
+  //       ops.push('componentDidMount:' + this.state.x + '-' + this.props.x);
+  //     }
+  //     render() {
+  //       return <span />;
+  //     }
+  //   }
+  //
+  //   function Trail() {
+  //     ops.push('Trail');
+  //     return null;
+  //   }
+  //
+  //   function App(props) {
+  //     ops.push('App');
+  //     return (
+  //       <div>
+  //         <LifeCycle x={props.x} />
+  //         <Trail />
+  //       </div>
+  //     );
+  //   }
+  //
+  //   ReactNoop.render(<App x={0} />);
+  //   ReactNoop.flushDeferredPri(30);
+  //
+  //   expect(ops).toEqual(['App', 'componentWillMount:0-0']);
+  //
+  //   ops = [];
+  //
+  //   ReactNoop.render(<App x={1} />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   expect(ops).toEqual([
+  //     'App',
+  //     'componentWillReceiveProps:0-1',
+  //     'componentWillMount:1-1',
+  //     'Trail',
+  //     'componentDidMount:1-1',
+  //   ]);
+  // });
+  //
+  // xit('uses state set in componentWillMount even if initial render was aborted', () => {
+  //   let ops = [];
+  //
+  //   class LifeCycle extends React.Component {
+  //     constructor(props) {
+  //       super(props);
+  //       this.state = {x: this.props.x + '(ctor)'};
+  //     }
+  //     UNSAFE_componentWillMount() {
+  //       ops.push('componentWillMount:' + this.state.x);
+  //       this.setState({x: this.props.x + '(willMount)'});
+  //     }
+  //     componentDidMount() {
+  //       ops.push('componentDidMount:' + this.state.x);
+  //     }
+  //     render() {
+  //       ops.push('render:' + this.state.x);
+  //       return <span />;
+  //     }
+  //   }
+  //
+  //   function App(props) {
+  //     ops.push('App');
+  //     return <LifeCycle x={props.x} />;
+  //   }
+  //
+  //   ReactNoop.render(<App x={0} />);
+  //   ReactNoop.flushDeferredPri(20);
+  //
+  //   expect(ops).toEqual([
+  //     'App',
+  //     'componentWillMount:0(ctor)',
+  //     'render:0(willMount)',
+  //   ]);
+  //
+  //   ops = [];
+  //   ReactNoop.render(<App x={1} />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   expect(ops).toEqual([
+  //     'App',
+  //     'componentWillMount:0(willMount)',
+  //     'render:1(willMount)',
+  //     'componentDidMount:1(willMount)',
+  //   ]);
+  // });
+  //
+  // xit('calls componentWill* twice if an update render is aborted', () => {
+  //   let ops = [];
+  //
+  //   class LifeCycle extends React.Component {
+  //     UNSAFE_componentWillMount() {
+  //       ops.push('componentWillMount:' + this.props.x);
+  //     }
+  //     componentDidMount() {
+  //       ops.push('componentDidMount:' + this.props.x);
+  //     }
+  //     UNSAFE_componentWillReceiveProps(nextProps) {
+  //       ops.push(
+  //         'componentWillReceiveProps:' + this.props.x + '-' + nextProps.x,
+  //       );
+  //     }
+  //     shouldComponentUpdate(nextProps) {
+  //       ops.push('shouldComponentUpdate:' + this.props.x + '-' + nextProps.x);
+  //       return true;
+  //     }
+  //     UNSAFE_componentWillUpdate(nextProps) {
+  //       ops.push('componentWillUpdate:' + this.props.x + '-' + nextProps.x);
+  //     }
+  //     componentDidUpdate(prevProps) {
+  //       ops.push('componentDidUpdate:' + this.props.x + '-' + prevProps.x);
+  //     }
+  //     render() {
+  //       ops.push('render:' + this.props.x);
+  //       return <span />;
+  //     }
+  //   }
+  //
+  //   function Sibling() {
+  //     // The sibling is used to confirm that we've completed the first child,
+  //     // but not yet flushed.
+  //     ops.push('Sibling');
+  //     return <span />;
+  //   }
+  //
+  //   function App(props) {
+  //     ops.push('App');
+  //
+  //     return [<LifeCycle key="a" x={props.x} />, <Sibling key="b" />];
+  //   }
+  //
+  //   ReactNoop.render(<App x={0} />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   expect(ops).toEqual([
+  //     'App',
+  //     'componentWillMount:0',
+  //     'render:0',
+  //     'Sibling',
+  //     'componentDidMount:0',
+  //   ]);
+  //
+  //   ops = [];
+  //
+  //   ReactNoop.render(<App x={1} />);
+  //   ReactNoop.flushDeferredPri(30);
+  //
+  //   expect(ops).toEqual([
+  //     'App',
+  //     'componentWillReceiveProps:0-1',
+  //     'shouldComponentUpdate:0-1',
+  //     'componentWillUpdate:0-1',
+  //     'render:1',
+  //     'Sibling',
+  //     // no componentDidUpdate
+  //   ]);
+  //
+  //   ops = [];
+  //
+  //   ReactNoop.render(<App x={2} />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   expect(ops).toEqual([
+  //     'App',
+  //     'componentWillReceiveProps:1-2',
+  //     'shouldComponentUpdate:1-2',
+  //     'componentWillUpdate:1-2',
+  //     'render:2',
+  //     'Sibling',
+  //     // When componentDidUpdate finally gets called, it covers both updates.
+  //     'componentDidUpdate:2-0',
+  //   ]);
+  // });
 
   it('calls getDerivedStateFromProps even for state-only updates', () => {
     let ops = [];
@@ -1485,250 +1485,250 @@ describe('ReactIncremental', () => {
     expect(Scheduler).toFlushAndYield(['Child']);
   });
 
-  xit('does not call componentWillReceiveProps for state-only updates', () => {
-    let ops = [];
-
-    const instances = [];
-
-    class LifeCycle extends React.Component {
-      state = {x: 0};
-      tick() {
-        this.setState({
-          x: this.state.x + 1,
-        });
-      }
-      UNSAFE_componentWillMount() {
-        instances.push(this);
-        ops.push('componentWillMount:' + this.state.x);
-      }
-      componentDidMount() {
-        ops.push('componentDidMount:' + this.state.x);
-      }
-      UNSAFE_componentWillReceiveProps(nextProps) {
-        ops.push('componentWillReceiveProps');
-      }
-      shouldComponentUpdate(nextProps, nextState) {
-        ops.push('shouldComponentUpdate:' + this.state.x + '-' + nextState.x);
-        return true;
-      }
-      UNSAFE_componentWillUpdate(nextProps, nextState) {
-        ops.push('componentWillUpdate:' + this.state.x + '-' + nextState.x);
-      }
-      componentDidUpdate(prevProps, prevState) {
-        ops.push('componentDidUpdate:' + this.state.x + '-' + prevState.x);
-      }
-      render() {
-        ops.push('render:' + this.state.x);
-        return <span />;
-      }
-    }
-
-    // This wrap is a bit contrived because we can't pause a completed root and
-    // there is currently an issue where a component can't reuse its render
-    // output unless it fully completed.
-    class Wrap extends React.Component {
-      state = {y: 0};
-      UNSAFE_componentWillMount() {
-        instances.push(this);
-      }
-      tick() {
-        this.setState({
-          y: this.state.y + 1,
-        });
-      }
-      render() {
-        ops.push('Wrap');
-        return <LifeCycle y={this.state.y} />;
-      }
-    }
-
-    function Sibling() {
-      // The sibling is used to confirm that we've completed the first child,
-      // but not yet flushed.
-      ops.push('Sibling');
-      return <span />;
-    }
-
-    function App(props) {
-      ops.push('App');
-      return [<Wrap key="a" />, <Sibling key="b" />];
-    }
-
-    ReactNoop.render(<App y={0} />);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    expect(ops).toEqual([
-      'App',
-      'Wrap',
-      'componentWillMount:0',
-      'render:0',
-      'Sibling',
-      'componentDidMount:0',
-    ]);
-
-    ops = [];
-
-    // LifeCycle
-    instances[1].tick();
-
-    ReactNoop.flushDeferredPri(25);
-
-    expect(ops).toEqual([
-      // no componentWillReceiveProps
-      'shouldComponentUpdate:0-1',
-      'componentWillUpdate:0-1',
-      'render:1',
-      // no componentDidUpdate
-    ]);
-
-    ops = [];
-
-    // LifeCycle
-    instances[1].tick();
-
-    expect(Scheduler).toFlushWithoutYielding();
-
-    expect(ops).toEqual([
-      // no componentWillReceiveProps
-      'shouldComponentUpdate:1-2',
-      'componentWillUpdate:1-2',
-      'render:2',
-      // When componentDidUpdate finally gets called, it covers both updates.
-      'componentDidUpdate:2-0',
-    ]);
-
-    ops = [];
-
-    // Next we will update props of LifeCycle by updating its parent.
-
-    instances[0].tick();
-
-    ReactNoop.flushDeferredPri(30);
-
-    expect(ops).toEqual([
-      'Wrap',
-      'componentWillReceiveProps',
-      'shouldComponentUpdate:2-2',
-      'componentWillUpdate:2-2',
-      'render:2',
-      // no componentDidUpdate
-    ]);
-
-    ops = [];
-
-    // Next we will update LifeCycle directly but not with new props.
-    instances[1].tick();
-
-    expect(Scheduler).toFlushWithoutYielding();
-
-    expect(ops).toEqual([
-      // This should not trigger another componentWillReceiveProps because
-      // we never got new props.
-      'shouldComponentUpdate:2-3',
-      'componentWillUpdate:2-3',
-      'render:3',
-      'componentDidUpdate:3-2',
-    ]);
-
-    // TODO: Test that we get the expected values for the same scenario with
-    // incomplete parents.
-  });
-
-  xit('skips will/DidUpdate when bailing unless an update was already in progress', () => {
-    let ops = [];
-
-    class LifeCycle extends React.Component {
-      UNSAFE_componentWillMount() {
-        ops.push('componentWillMount');
-      }
-      componentDidMount() {
-        ops.push('componentDidMount');
-      }
-      UNSAFE_componentWillReceiveProps(nextProps) {
-        ops.push('componentWillReceiveProps');
-      }
-      shouldComponentUpdate(nextProps) {
-        ops.push('shouldComponentUpdate');
-        // Bail
-        return this.props.x !== nextProps.x;
-      }
-      UNSAFE_componentWillUpdate(nextProps) {
-        ops.push('componentWillUpdate');
-      }
-      componentDidUpdate(prevProps) {
-        ops.push('componentDidUpdate');
-      }
-      render() {
-        ops.push('render');
-        return <span />;
-      }
-    }
-
-    function Sibling() {
-      ops.push('render sibling');
-      return <span />;
-    }
-
-    function App(props) {
-      return [<LifeCycle key="a" x={props.x} />, <Sibling key="b" />];
-    }
-
-    ReactNoop.render(<App x={0} />);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    expect(ops).toEqual([
-      'componentWillMount',
-      'render',
-      'render sibling',
-      'componentDidMount',
-    ]);
-
-    ops = [];
-
-    // Update to same props
-    ReactNoop.render(<App x={0} />);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    expect(ops).toEqual([
-      'componentWillReceiveProps',
-      'shouldComponentUpdate',
-      // no componentWillUpdate
-      // no render
-      'render sibling',
-      // no componentDidUpdate
-    ]);
-
-    ops = [];
-
-    // Begin updating to new props...
-    ReactNoop.render(<App x={1} />);
-    ReactNoop.flushDeferredPri(30);
-
-    expect(ops).toEqual([
-      'componentWillReceiveProps',
-      'shouldComponentUpdate',
-      'componentWillUpdate',
-      'render',
-      'render sibling',
-      // no componentDidUpdate yet
-    ]);
-
-    ops = [];
-
-    // ...but we'll interrupt it to rerender the same props.
-    ReactNoop.render(<App x={1} />);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    // We can bail out this time, but we must call componentDidUpdate.
-    expect(ops).toEqual([
-      'componentWillReceiveProps',
-      'shouldComponentUpdate',
-      // no componentWillUpdate
-      // no render
-      'render sibling',
-      'componentDidUpdate',
-    ]);
-  });
+  // xit('does not call componentWillReceiveProps for state-only updates', () => {
+  //   let ops = [];
+  //
+  //   const instances = [];
+  //
+  //   class LifeCycle extends React.Component {
+  //     state = {x: 0};
+  //     tick() {
+  //       this.setState({
+  //         x: this.state.x + 1,
+  //       });
+  //     }
+  //     UNSAFE_componentWillMount() {
+  //       instances.push(this);
+  //       ops.push('componentWillMount:' + this.state.x);
+  //     }
+  //     componentDidMount() {
+  //       ops.push('componentDidMount:' + this.state.x);
+  //     }
+  //     UNSAFE_componentWillReceiveProps(nextProps) {
+  //       ops.push('componentWillReceiveProps');
+  //     }
+  //     shouldComponentUpdate(nextProps, nextState) {
+  //       ops.push('shouldComponentUpdate:' + this.state.x + '-' + nextState.x);
+  //       return true;
+  //     }
+  //     UNSAFE_componentWillUpdate(nextProps, nextState) {
+  //       ops.push('componentWillUpdate:' + this.state.x + '-' + nextState.x);
+  //     }
+  //     componentDidUpdate(prevProps, prevState) {
+  //       ops.push('componentDidUpdate:' + this.state.x + '-' + prevState.x);
+  //     }
+  //     render() {
+  //       ops.push('render:' + this.state.x);
+  //       return <span />;
+  //     }
+  //   }
+  //
+  //   // This wrap is a bit contrived because we can't pause a completed root and
+  //   // there is currently an issue where a component can't reuse its render
+  //   // output unless it fully completed.
+  //   class Wrap extends React.Component {
+  //     state = {y: 0};
+  //     UNSAFE_componentWillMount() {
+  //       instances.push(this);
+  //     }
+  //     tick() {
+  //       this.setState({
+  //         y: this.state.y + 1,
+  //       });
+  //     }
+  //     render() {
+  //       ops.push('Wrap');
+  //       return <LifeCycle y={this.state.y} />;
+  //     }
+  //   }
+  //
+  //   function Sibling() {
+  //     // The sibling is used to confirm that we've completed the first child,
+  //     // but not yet flushed.
+  //     ops.push('Sibling');
+  //     return <span />;
+  //   }
+  //
+  //   function App(props) {
+  //     ops.push('App');
+  //     return [<Wrap key="a" />, <Sibling key="b" />];
+  //   }
+  //
+  //   ReactNoop.render(<App y={0} />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   expect(ops).toEqual([
+  //     'App',
+  //     'Wrap',
+  //     'componentWillMount:0',
+  //     'render:0',
+  //     'Sibling',
+  //     'componentDidMount:0',
+  //   ]);
+  //
+  //   ops = [];
+  //
+  //   // LifeCycle
+  //   instances[1].tick();
+  //
+  //   ReactNoop.flushDeferredPri(25);
+  //
+  //   expect(ops).toEqual([
+  //     // no componentWillReceiveProps
+  //     'shouldComponentUpdate:0-1',
+  //     'componentWillUpdate:0-1',
+  //     'render:1',
+  //     // no componentDidUpdate
+  //   ]);
+  //
+  //   ops = [];
+  //
+  //   // LifeCycle
+  //   instances[1].tick();
+  //
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   expect(ops).toEqual([
+  //     // no componentWillReceiveProps
+  //     'shouldComponentUpdate:1-2',
+  //     'componentWillUpdate:1-2',
+  //     'render:2',
+  //     // When componentDidUpdate finally gets called, it covers both updates.
+  //     'componentDidUpdate:2-0',
+  //   ]);
+  //
+  //   ops = [];
+  //
+  //   // Next we will update props of LifeCycle by updating its parent.
+  //
+  //   instances[0].tick();
+  //
+  //   ReactNoop.flushDeferredPri(30);
+  //
+  //   expect(ops).toEqual([
+  //     'Wrap',
+  //     'componentWillReceiveProps',
+  //     'shouldComponentUpdate:2-2',
+  //     'componentWillUpdate:2-2',
+  //     'render:2',
+  //     // no componentDidUpdate
+  //   ]);
+  //
+  //   ops = [];
+  //
+  //   // Next we will update LifeCycle directly but not with new props.
+  //   instances[1].tick();
+  //
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   expect(ops).toEqual([
+  //     // This should not trigger another componentWillReceiveProps because
+  //     // we never got new props.
+  //     'shouldComponentUpdate:2-3',
+  //     'componentWillUpdate:2-3',
+  //     'render:3',
+  //     'componentDidUpdate:3-2',
+  //   ]);
+  //
+  //   // TODO: Test that we get the expected values for the same scenario with
+  //   // incomplete parents.
+  // });
+  //
+  // xit('skips will/DidUpdate when bailing unless an update was already in progress', () => {
+  //   let ops = [];
+  //
+  //   class LifeCycle extends React.Component {
+  //     UNSAFE_componentWillMount() {
+  //       ops.push('componentWillMount');
+  //     }
+  //     componentDidMount() {
+  //       ops.push('componentDidMount');
+  //     }
+  //     UNSAFE_componentWillReceiveProps(nextProps) {
+  //       ops.push('componentWillReceiveProps');
+  //     }
+  //     shouldComponentUpdate(nextProps) {
+  //       ops.push('shouldComponentUpdate');
+  //       // Bail
+  //       return this.props.x !== nextProps.x;
+  //     }
+  //     UNSAFE_componentWillUpdate(nextProps) {
+  //       ops.push('componentWillUpdate');
+  //     }
+  //     componentDidUpdate(prevProps) {
+  //       ops.push('componentDidUpdate');
+  //     }
+  //     render() {
+  //       ops.push('render');
+  //       return <span />;
+  //     }
+  //   }
+  //
+  //   function Sibling() {
+  //     ops.push('render sibling');
+  //     return <span />;
+  //   }
+  //
+  //   function App(props) {
+  //     return [<LifeCycle key="a" x={props.x} />, <Sibling key="b" />];
+  //   }
+  //
+  //   ReactNoop.render(<App x={0} />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   expect(ops).toEqual([
+  //     'componentWillMount',
+  //     'render',
+  //     'render sibling',
+  //     'componentDidMount',
+  //   ]);
+  //
+  //   ops = [];
+  //
+  //   // Update to same props
+  //   ReactNoop.render(<App x={0} />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   expect(ops).toEqual([
+  //     'componentWillReceiveProps',
+  //     'shouldComponentUpdate',
+  //     // no componentWillUpdate
+  //     // no render
+  //     'render sibling',
+  //     // no componentDidUpdate
+  //   ]);
+  //
+  //   ops = [];
+  //
+  //   // Begin updating to new props...
+  //   ReactNoop.render(<App x={1} />);
+  //   ReactNoop.flushDeferredPri(30);
+  //
+  //   expect(ops).toEqual([
+  //     'componentWillReceiveProps',
+  //     'shouldComponentUpdate',
+  //     'componentWillUpdate',
+  //     'render',
+  //     'render sibling',
+  //     // no componentDidUpdate yet
+  //   ]);
+  //
+  //   ops = [];
+  //
+  //   // ...but we'll interrupt it to rerender the same props.
+  //   ReactNoop.render(<App x={1} />);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   // We can bail out this time, but we must call componentDidUpdate.
+  //   expect(ops).toEqual([
+  //     'componentWillReceiveProps',
+  //     'shouldComponentUpdate',
+  //     // no componentWillUpdate
+  //     // no render
+  //     'render sibling',
+  //     'componentDidUpdate',
+  //   ]);
+  // });
 
   it('can nest batchedUpdates', () => {
     let ops = [];
@@ -2456,88 +2456,88 @@ describe('ReactIncremental', () => {
     ]);
   });
 
-  xit('should reuse memoized work if pointers are updated before calling lifecycles', () => {
-    let cduNextProps = [];
-    let cduPrevProps = [];
-    let scuNextProps = [];
-    let scuPrevProps = [];
-    let renderCounter = 0;
-
-    function SecondChild(props) {
-      return <span>{props.children}</span>;
-    }
-
-    class FirstChild extends React.Component {
-      componentDidUpdate(prevProps, prevState) {
-        cduNextProps.push(this.props);
-        cduPrevProps.push(prevProps);
-      }
-      shouldComponentUpdate(nextProps, nextState) {
-        scuNextProps.push(nextProps);
-        scuPrevProps.push(this.props);
-        return this.props.children !== nextProps.children;
-      }
-      render() {
-        renderCounter++;
-        return <span>{this.props.children}</span>;
-      }
-    }
-
-    class Middle extends React.Component {
-      render() {
-        return (
-          <div>
-            <FirstChild>{this.props.children}</FirstChild>
-            <SecondChild>{this.props.children}</SecondChild>
-          </div>
-        );
-      }
-    }
-
-    function Root(props) {
-      return (
-        <div hidden={true}>
-          <Middle {...props} />
-        </div>
-      );
-    }
-
-    // Initial render of the entire tree.
-    // Renders: Root, Middle, FirstChild, SecondChild
-    ReactNoop.render(<Root>A</Root>);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    expect(renderCounter).toBe(1);
-
-    // Schedule low priority work to update children.
-    // Give it enough time to partially render.
-    // Renders: Root, Middle, FirstChild
-    ReactNoop.render(<Root>B</Root>);
-    ReactNoop.flushDeferredPri(20 + 30 + 5);
-
-    // At this point our FirstChild component has rendered a second time,
-    // But since the render is not completed cDU should not be called yet.
-    expect(renderCounter).toBe(2);
-    expect(scuPrevProps).toEqual([{children: 'A'}]);
-    expect(scuNextProps).toEqual([{children: 'B'}]);
-    expect(cduPrevProps).toEqual([]);
-    expect(cduNextProps).toEqual([]);
-
-    // Next interrupt the partial render with higher priority work.
-    // The in-progress child content will bailout.
-    // Renders: Root, Middle, FirstChild, SecondChild
-    ReactNoop.render(<Root>B</Root>);
-    expect(Scheduler).toFlushWithoutYielding();
-
-    // At this point the higher priority render has completed.
-    // Since FirstChild props didn't change, sCU returned false.
-    // The previous memoized copy should be used.
-    expect(renderCounter).toBe(2);
-    expect(scuPrevProps).toEqual([{children: 'A'}, {children: 'B'}]);
-    expect(scuNextProps).toEqual([{children: 'B'}, {children: 'B'}]);
-    expect(cduPrevProps).toEqual([{children: 'A'}]);
-    expect(cduNextProps).toEqual([{children: 'B'}]);
-  });
+  // xit('should reuse memoized work if pointers are updated before calling lifecycles', () => {
+  //   let cduNextProps = [];
+  //   let cduPrevProps = [];
+  //   let scuNextProps = [];
+  //   let scuPrevProps = [];
+  //   let renderCounter = 0;
+  //
+  //   function SecondChild(props) {
+  //     return <span>{props.children}</span>;
+  //   }
+  //
+  //   class FirstChild extends React.Component {
+  //     componentDidUpdate(prevProps, prevState) {
+  //       cduNextProps.push(this.props);
+  //       cduPrevProps.push(prevProps);
+  //     }
+  //     shouldComponentUpdate(nextProps, nextState) {
+  //       scuNextProps.push(nextProps);
+  //       scuPrevProps.push(this.props);
+  //       return this.props.children !== nextProps.children;
+  //     }
+  //     render() {
+  //       renderCounter++;
+  //       return <span>{this.props.children}</span>;
+  //     }
+  //   }
+  //
+  //   class Middle extends React.Component {
+  //     render() {
+  //       return (
+  //         <div>
+  //           <FirstChild>{this.props.children}</FirstChild>
+  //           <SecondChild>{this.props.children}</SecondChild>
+  //         </div>
+  //       );
+  //     }
+  //   }
+  //
+  //   function Root(props) {
+  //     return (
+  //       <div hidden={true}>
+  //         <Middle {...props} />
+  //       </div>
+  //     );
+  //   }
+  //
+  //   // Initial render of the entire tree.
+  //   // Renders: Root, Middle, FirstChild, SecondChild
+  //   ReactNoop.render(<Root>A</Root>);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   expect(renderCounter).toBe(1);
+  //
+  //   // Schedule low priority work to update children.
+  //   // Give it enough time to partially render.
+  //   // Renders: Root, Middle, FirstChild
+  //   ReactNoop.render(<Root>B</Root>);
+  //   ReactNoop.flushDeferredPri(20 + 30 + 5);
+  //
+  //   // At this point our FirstChild component has rendered a second time,
+  //   // But since the render is not completed cDU should not be called yet.
+  //   expect(renderCounter).toBe(2);
+  //   expect(scuPrevProps).toEqual([{children: 'A'}]);
+  //   expect(scuNextProps).toEqual([{children: 'B'}]);
+  //   expect(cduPrevProps).toEqual([]);
+  //   expect(cduNextProps).toEqual([]);
+  //
+  //   // Next interrupt the partial render with higher priority work.
+  //   // The in-progress child content will bailout.
+  //   // Renders: Root, Middle, FirstChild, SecondChild
+  //   ReactNoop.render(<Root>B</Root>);
+  //   expect(Scheduler).toFlushWithoutYielding();
+  //
+  //   // At this point the higher priority render has completed.
+  //   // Since FirstChild props didn't change, sCU returned false.
+  //   // The previous memoized copy should be used.
+  //   expect(renderCounter).toBe(2);
+  //   expect(scuPrevProps).toEqual([{children: 'A'}, {children: 'B'}]);
+  //   expect(scuNextProps).toEqual([{children: 'B'}, {children: 'B'}]);
+  //   expect(cduPrevProps).toEqual([{children: 'A'}]);
+  //   expect(cduNextProps).toEqual([{children: 'B'}]);
+  // });
 
   it('updates descendants with new context values', () => {
     let rendered = [];
