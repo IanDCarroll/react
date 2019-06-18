@@ -330,32 +330,32 @@ describe('SyntheticEvent', () => {
   // but it shouldn't use Proxies because they make debugging difficult.
   // Or we might disallow this pattern altogether:
   // https://github.com/facebook/react/issues/13224
-  xit('should warn if a property is added to the synthetic event', () => {
-    let node;
-    let expectedCount = 0;
-    let syntheticEvent;
-
-    const eventHandler = e => {
-      expect(() => {
-        e.foo = 'bar';
-      }).toWarnDev(
-        'Warning: This synthetic event is reused for performance reasons. If ' +
-          "you're seeing this, you're adding a new property in the synthetic " +
-          'event object. The property is never released. ' +
-          'See https://fb.me/react-event-pooling for more information.',
-        {withoutStack: true},
-      );
-      syntheticEvent = e;
-      expectedCount++;
-    };
-    node = ReactDOM.render(<div onClick={eventHandler} />, container);
-
-    const event = document.createEvent('Event');
-    event.initEvent('click', true, true);
-
-    node.dispatchEvent(event);
-
-    expect(syntheticEvent.foo).toBe('bar');
-    expect(expectedCount).toBe(1);
-  });
+  // xit('should warn if a property is added to the synthetic event', () => {
+  //   let node;
+  //   let expectedCount = 0;
+  //   let syntheticEvent;
+  //
+  //   const eventHandler = e => {
+  //     expect(() => {
+  //       e.foo = 'bar';
+  //     }).toWarnDev(
+  //       'Warning: This synthetic event is reused for performance reasons. If ' +
+  //         "you're seeing this, you're adding a new property in the synthetic " +
+  //         'event object. The property is never released. ' +
+  //         'See https://fb.me/react-event-pooling for more information.',
+  //       {withoutStack: true},
+  //     );
+  //     syntheticEvent = e;
+  //     expectedCount++;
+  //   };
+  //   node = ReactDOM.render(<div onClick={eventHandler} />, container);
+  //
+  //   const event = document.createEvent('Event');
+  //   event.initEvent('click', true, true);
+  //
+  //   node.dispatchEvent(event);
+  //
+  //   expect(syntheticEvent.foo).toBe('bar');
+  //   expect(expectedCount).toBe(1);
+  // });
 });

@@ -167,5 +167,5 @@ describe('ReactSchedulerIntegration', () => {
   });
 
   // TODO
-  it.skip('passive effects have render priority even if they are flushed early', () => {});
+  // it.skip('passive effects have render priority even if they are flushed early', () => {});
 });
