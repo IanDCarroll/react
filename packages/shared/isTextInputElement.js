@@ -22,7 +22,7 @@ const supportedInputTypes: {[key: string]: true | void} = {
   range: true,
   search: true,
   tel: true,
-  //text: true,
+  text: undefined,
   time: true,
   url: true,
   week: true,
