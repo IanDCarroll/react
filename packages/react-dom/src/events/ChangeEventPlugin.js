@@ -271,6 +271,7 @@ const ChangeEventPlugin = {
     let getTargetInstFunc, handleEventFunc;
     if (shouldUseChangeEvent(targetNode)) {
       getTargetInstFunc = getTargetInstForChangeEvent;
+      //==>
     } else if (isTextInputElement(targetNode)) {
       if (isInputEventSupported) {
         getTargetInstFunc = getTargetInstForInputOrChangeEvent;

@@ -198,6 +198,7 @@ describe('ReactDOMInput', () => {
     expect(instance.switchedFocus).toBe(true);
   });
 
+  //==>
   it('should control values in reentrant events with different targets', () => {
     class ControlledInputs extends React.Component {
       state = {value: 'lion'};
@@ -241,8 +242,9 @@ describe('ReactDOMInput', () => {
     expect(instance.b.checked).toBe(true);
   });
 
+  //==>
   describe('switching text inputs between numeric and string numbers', () => {
-    it('does change the number 2 to "2.0" with no change handler', () => {
+    fit('does change the number 2 to "2.0" with no change handler', () => {
       const stub = <input type="text" value={2} onChange={jest.fn()} />;
       const node = ReactDOM.render(stub, container);
 
@@ -302,7 +304,7 @@ describe('ReactDOMInput', () => {
     });
   });
 
-  it('does change the string ".98" to "0.98" with no change handler', () => {
+  fit('does change the string ".98" to "0.98" with no change handler', () => {
     class Stub extends React.Component {
       state = {
         value: '.98',
