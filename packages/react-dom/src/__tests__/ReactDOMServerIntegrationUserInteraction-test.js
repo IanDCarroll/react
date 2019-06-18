@@ -36,7 +36,7 @@ const {
   serverRender,
 } = ReactDOMServerIntegrationUtils(initModules);
 
-xdescribe('ReactDOMServerIntegrationUserInteraction', () => {
+describe('ReactDOMServerIntegrationUserInteraction', () => {
   let ControlledInput, ControlledTextArea, ControlledCheckbox, ControlledSelect;
 
   beforeEach(() => {

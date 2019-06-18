@@ -20,7 +20,7 @@ const setUntrackedInputValue = Object.getOwnPropertyDescriptor(
   'value',
 ).set;
 
-xdescribe('ReactDOMFiberAsync', () => {
+describe('ReactDOMFiberAsync', () => {
   let container;
 
   beforeEach(() => {
@@ -47,7 +47,7 @@ xdescribe('ReactDOMFiberAsync', () => {
     expect(ops).toEqual(['Hi', 'Bye']);
   });
 
-  it('does not perform deferred updates synchronously', () => {
+  xit('does not perform deferred updates synchronously', () => {
     let inputRef = React.createRef();
     let asyncValueRef = React.createRef();
     let syncValueRef = React.createRef();

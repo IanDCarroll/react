@@ -12,7 +12,7 @@
 let React;
 let ReactDOM;
 
-xdescribe('SelectEventPlugin', () => {
+describe('SelectEventPlugin', () => {
   let container;
 
   beforeEach(() => {
@@ -29,7 +29,7 @@ xdescribe('SelectEventPlugin', () => {
   });
 
   // See https://github.com/facebook/react/pull/3639 for details.
-  it('does not get confused when dependent events are registered independently', () => {
+  xit('does not get confused when dependent events are registered independently', () => {
     const select = jest.fn();
     const onSelect = event => {
       expect(typeof event).toBe('object');
@@ -75,7 +75,7 @@ xdescribe('SelectEventPlugin', () => {
     expect(select).toHaveBeenCalledTimes(1);
   });
 
-  it('should fire `onSelect` when a listener is present', () => {
+  xit('should fire `onSelect` when a listener is present', () => {
     const select = jest.fn();
     const onSelect = event => {
       expect(typeof event).toBe('object');
@@ -110,7 +110,7 @@ xdescribe('SelectEventPlugin', () => {
   });
 
   // Regression test for https://github.com/facebook/react/issues/11379
-  it('should not wait for `mouseup` after receiving `dragend`', () => {
+  xit('should not wait for `mouseup` after receiving `dragend`', () => {
     const select = jest.fn();
     const onSelect = event => {
       expect(typeof event).toBe('object');

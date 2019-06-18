@@ -30,7 +30,7 @@ const setUntrackedTextareaValue = Object.getOwnPropertyDescriptor(
   'value',
 ).set;
 
-xdescribe('ChangeEventPlugin', () => {
+describe('ChangeEventPlugin', () => {
   let container;
 
   beforeEach(() => {
@@ -178,7 +178,7 @@ xdescribe('ChangeEventPlugin', () => {
     expect(called).toBe(2);
   });
 
-  it('should not fire change setting the value programmatically', () => {
+  xit('should not fire change setting the value programmatically', () => {
     let called = 0;
 
     function cb(e) {
@@ -343,7 +343,7 @@ xdescribe('ChangeEventPlugin', () => {
     expect(called2).toBe(1);
   });
 
-  it('should deduplicate input value change events', () => {
+  xit('should deduplicate input value change events', () => {
     let called = 0;
 
     function cb(e) {
@@ -491,7 +491,7 @@ xdescribe('ChangeEventPlugin', () => {
       Scheduler = require('scheduler');
     });
 
-    it('text input', () => {
+    xit('text input', () => {
       const root = ReactDOM.unstable_createRoot(container);
       let input;
 
@@ -647,7 +647,7 @@ xdescribe('ChangeEventPlugin', () => {
       expect(textarea.value).toBe('changed [!]');
     });
 
-    it('parent of input', () => {
+    xit('parent of input', () => {
       const root = ReactDOM.unstable_createRoot(container);
       let input;
 

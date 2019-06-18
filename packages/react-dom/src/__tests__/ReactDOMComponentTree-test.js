@@ -9,7 +9,7 @@
 
 'use strict';
 
-xdescribe('ReactDOMComponentTree', () => {
+describe('ReactDOMComponentTree', () => {
   let React;
   let ReactDOM;
   let container;
@@ -140,7 +140,7 @@ xdescribe('ReactDOMComponentTree', () => {
     expect(action).toEqual('B');
   });
 
-  it('finds a controlled instance from node and gets its current fiber props', () => {
+  xit('finds a controlled instance from node and gets its current fiber props', () => {
     const inputID = 'inputID';
     const startValue = undefined;
     const finishValue = 'finish';

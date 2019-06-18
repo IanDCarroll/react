@@ -268,9 +268,9 @@ module.exports = function(initModules) {
   // Since all of the renders in this function are on the client, you can test interactivity,
   // unlike with itRenders.
   function itClientRenders(desc, testFn) {
-    it(`renders ${desc} with clean client render`, () =>
+    xit(`renders ${desc} with clean client render`, () =>
       testFn(clientCleanRender));
-    it(`renders ${desc} with client render on top of good server markup`, () =>
+    xit(`renders ${desc} with client render on top of good server markup`, () =>
       testFn(clientRenderOnServerString));
     it(`renders ${desc} with client render on top of bad server markup`, async () => {
       try {
