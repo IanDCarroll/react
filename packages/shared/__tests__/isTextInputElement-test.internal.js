@@ -41,98 +41,97 @@ describe('isTextInputElement', () => {
     expect(evaluation).toBe(true);
   });
 
-  it("returns false for an HTMLElement of 'input' where type is not supported", () => {
-    const element = document.createElement('input');
-    element.type = "not supported";
+  it("returns false for an HTMLInputElement of a type that is not supported", () => {
+    const element = createInputElement('not supported')
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(false);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is text", () => {
+  it("returns true for an HTMLInputElement of type 'text'", () => {
     const element = createInputElement('text');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is number", () => {
+  it("returns true for an HTMLInputElement of type 'number'", () => {
     const element = createInputElement('number');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is range", () => {
+  it("returns true for an HTMLInputElement of type 'range'", () => {
     const element = createInputElement('range');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is color", () => {
+  it("returns true for an HTMLInputElement of type 'color'", () => {
     const element = createInputElement('color');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is date", () => {
+  it("returns true for an HTMLInputElement of type 'date'", () => {
     const element = createInputElement('date');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is datetime", () => {
+  it("returns true for an HTMLInputElement of type 'datetime'", () => {
     const element = createInputElement('datetime');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is 'datetime-local'", () => {
+  it("returns true for an HTMLInputElement of type 'datetime-local'", () => {
     const element = createInputElement('datetime-local');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is email", () => {
+  it("returns true for an HTMLInputElement of type 'email'", () => {
     const element = createInputElement('email');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is month", () => {
+  it("returns true for an HTMLInputElement of type 'month'", () => {
     const element = createInputElement('month');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is password", () => {
+  it("returns true for an HTMLInputElement of type 'password'", () => {
     const element = createInputElement('password');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is search", () => {
+  it("returns true for an HTMLInputElement of type 'search'", () => {
     const element = createInputElement('search');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is tel", () => {
+  it("returns true for an HTMLInputElement of type 'tel'", () => {
     const element = createInputElement('tel');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is time", () => {
+  it("returns true for an HTMLInputElement of type 'time'", () => {
     const element = createInputElement('time');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement of 'input' where type is url", () => {
+  it("returns true for an HTMLInputElement of type 'url'", () => {
     const element = createInputElement('url');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
   });
 
-  it("returns true for an HTMLElement with NodeName input and type week", () => {
+  it("returns true for an HTMLInputElement of type 'week'", () => {
     const element = createInputElement('week');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(true);
