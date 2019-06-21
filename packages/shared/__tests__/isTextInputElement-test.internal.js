@@ -14,16 +14,15 @@ function createInputElement(inputType) {
   let element = document.createElement('input');
   element.type = inputType;
   return element;
-};
+}
 
 describe('isTextInputElement', () => {
-
-  it("returns false if no element is passed to it", () => {
+  it('returns false if no element is passed to it', () => {
     const evaluation = isTextInputElement();
     expect(evaluation).toBe(false);
   });
 
-  it("returns false for an HTMLElement with a falsey nodeName;", () => {
+  it('returns false for an HTMLElement with a falsey nodeName;', () => {
     const element = document.createElement(null);
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(false);
@@ -41,8 +40,8 @@ describe('isTextInputElement', () => {
     expect(evaluation).toBe(true);
   });
 
-  it("returns false for an HTMLInputElement of a type that is not supported", () => {
-    const element = createInputElement('not supported')
+  it('returns false for an HTMLInputElement of a type that is not supported', () => {
+    const element = createInputElement('not supported');
     const evaluation = isTextInputElement(element);
     expect(evaluation).toBe(false);
   });
